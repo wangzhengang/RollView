@@ -9,7 +9,7 @@
 #import "ViewController.h"
 #import "RollView.h"
 
-@interface ViewController ()
+@interface ViewController ()<RollViewDelegate>
 
 @end
 
@@ -30,9 +30,10 @@
     UILabel *lab = [[UILabel alloc] initWithFrame:CGRectMake(20, 3, 100, 30)];
     [lab setAttributedText:att];
     [lab sizeToFit];
-    RollView *textView1 = [[RollView alloc] initWithFrame:frame duration:5.f direction:RollDirectionLeft custom:lab];
+    RollView *textView1 = [[RollView alloc] initWithFrame:frame delegate:self duration:5.f direction:RollDirectionLeft custom:lab];
     [textView1 setBackgroundColor:[UIColor blueColor]];
     [self.view addSubview:textView1];
+    [textView1 start];
     
     
     
@@ -43,9 +44,10 @@
     NSString *path = [[NSBundle mainBundle] pathForResource:@"fire" ofType:@"png"];
     UIImage *image = [UIImage imageWithContentsOfFile:path];
     [btn setImage:image forState:UIControlStateNormal];
-    RollView *textView2 = [[RollView alloc] initWithFrame:frame duration:5.f direction:RollDirectionRight custom:btn];
+    RollView *textView2 = [[RollView alloc] initWithFrame:frame delegate:self duration:5.f direction:RollDirectionRight custom:btn];
     [textView2 setBackgroundColor:[UIColor blueColor]];
     [self.view addSubview:textView2];
+    [textView2 start];
     
     
     
@@ -55,10 +57,11 @@
     UILabel *lab2 = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 100, 100)];
     [lab2 setAttributedText:att2];
     lab2.numberOfLines = 0;
-    RollView *textView3 = [[RollView alloc] initWithFrame:frame duration:2 direction:RollDirectionUp custom:lab2];
+    RollView *textView3 = [[RollView alloc] initWithFrame:frame delegate:self duration:2 direction:RollDirectionUp custom:lab2];
     [textView3 setBackgroundColor:[UIColor blueColor]];
     [self.view addSubview:textView3];
-    
+    [textView3 start];
+    [textView3 start];
 
     
     frame = CGRectMake(150, 200, 100, 100);
@@ -68,13 +71,21 @@
     [btn setImage:image forState:UIControlStateNormal];
     [btn setImageEdgeInsets:UIEdgeInsetsMake(30, 0, 0, -30)];
     [btn setTitleEdgeInsets:UIEdgeInsetsMake(-10, -10, 10, 0)];
-    RollView *textView4 = [[RollView alloc] initWithFrame:frame duration:2 direction:RollDirectionDown custom:btn];
+    RollView *textView4 = [[RollView alloc] initWithFrame:frame delegate:self duration:2 direction:RollDirectionDown custom:btn];
     [textView4 setBackgroundColor:[UIColor blueColor]];
     [self.view addSubview:textView4];
-    
+    [textView4 start];
+    [textView4 start];
+    [textView4 start];
 
     
 }
+
+- (void)rollViewSate:(RollViewState)state customView:(nonnull UIView *)view {
+//    NSLog(@"view: %@, state: %@", view, @(state));
+    NSLog(@"state: %@", @(state));
+}
+
 
 
 @end

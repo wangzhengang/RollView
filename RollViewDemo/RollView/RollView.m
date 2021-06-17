@@ -8,20 +8,31 @@
 #import "RollView.h"
 
 @interface RollView ()
+/// 代理
+@property (nonatomic, weak)   id<RollViewDelegate> delegate;
+/// 自定义 view
 @property (nonatomic, strong) UIView *customView;
+/// 时间
 @property (nonatomic, assign) NSTimeInterval duration;
+/// 方向
 @property (nonatomic, assign) RollDirection direction;
-@property (nonatomic, strong) NSTimer *timer;
+/// 动画设置
+@property (nonatomic, assign) UIViewAnimationOptions options;
+
 @end
 
 @implementation RollView
 
 - (void)dealloc {
-    [_timer invalidate];
-    _timer = nil;
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    NSLog(@"%s", __func__);
 }
 
-- (instancetype)initWithFrame:(CGRect)frame duration:(NSTimeInterval)duration direction:(RollDirection)direction custom:(UIView *)view {
+- (instancetype)initWithFrame:(CGRect)frame
+                     delegate:(id<RollViewDelegate>)delegate
+                     duration:(NSTimeInterval)duration
+                    direction:(RollDirection)direction
+                       custom:(UIView *)view {
     
     self = [super initWithFrame:frame];
     if (!view) {
@@ -30,39 +41,31 @@
     if (self) {
         
         self.clipsToBounds = YES;
+        self.state         = RollViewStateDidInit;
+        self.delegate      = delegate;
         self.duration      = (duration   <= 0.f ? 5.f : duration);
         self.direction     = ((direction < 1 || direction > 4) ? 1 : direction);
         self.customView    = view;
+        self.options       = UIViewAnimationOptionLayoutSubviews|
+                             UIViewAnimationOptionCurveLinear|
+                             UIViewAnimationOptionAllowUserInteraction;
+//                             UIViewAnimationOptionRepeat;
         
         [self addSubview:self.customView];
         
-        if (direction == RollDirectionUp ||
-            direction == RollDirectionDown) {
-            [self scorllVertical];
-        } else {
-            [self scrollHorizontal];
+        if (self.delegate && [self.delegate respondsToSelector:@selector(rollViewSate:customView:)]) {
+            [self.delegate rollViewSate: self.state customView: view];
         }
-        __weak RollView *weakSelf = self;
-        CGFloat interval = self.duration + 0.1;
-        self.timer = [NSTimer scheduledTimerWithTimeInterval:interval repeats:YES block:^(NSTimer * _Nonnull timer) {
-            
-            switch (direction) {
-                case RollDirectionDown:
-                case RollDirectionUp:
-                    [weakSelf scorllVertical];
-                    break;
-                case RollDirectionLeft:
-                case RollDirectionRight:
-                default:
-                    [weakSelf scrollHorizontal];
-                    break;
-            }
-        }];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(rollViewWillEnterForeground) name:UIApplicationWillEnterForegroundNotification
+                                                   object:nil];
     }
     return self;
 }
 
 - (void)setCustomView:(UIView *)customView {
+    
     if (_customView != customView) {
         _customView  = customView;
         
@@ -72,40 +75,100 @@
     }
 }
 
+- (void)start {
+    
+    if (self.state == RollViewStateDidStop || self.state == RollViewStateRolling) {
+        return;
+    }
+    
+    self.state = RollViewStateWillBegin;
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(rollViewSate:customView:)]) {
+        [self.delegate rollViewSate: self.state customView: self.customView];
+    }
+    
+    if (self.direction == RollDirectionUp ||
+        self.direction == RollDirectionDown) {
+        [self scorllVertical];
+    } else {
+        [self scrollHorizontal];
+    }
+}
+
+- (void)stop {
+    
+    self.state = RollViewStateDidStop;
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(rollViewSate:customView:)]) {
+        [self.delegate rollViewSate: self.state customView: self.customView];
+    }
+}
+
+#pragma mark - Direction
+
 ///水平方向的滚动
 - (void)scrollHorizontal {
     
+    if (self.state == RollViewStateDidStop) {
+        return;
+    }
+    
     [self.customView setHidden:NO];
     [self beginPoint];
-    [UIView animateWithDuration:self.duration delay:0 options:UIViewAnimationOptionCurveLinear animations:^{
+    
+    self.state = RollViewStateRolling;
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(rollViewSate:customView:)]) {
+        [self.delegate rollViewSate: self.state customView: self.customView];
+    }
+    
+    [UIView animateWithDuration:self.duration delay:0 options:self.options animations:^{
         [self endPoint];
     } completion:^(BOOL finished) {
         [self.customView setHidden:YES];
-        [self beginPoint];
+        [self scrollHorizontal];
     }];
 }
 
 ///垂直方向的滚动
 - (void)scorllVertical {
     
+    if (self.state == RollViewStateDidStop) {
+        return;
+    }
+    
     [self.customView setHidden:NO];
     [self beginPoint];
+    
+    self.state = RollViewStateRolling;
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(rollViewSate:customView:)]) {
+        [self.delegate rollViewSate: self.state customView: self.customView];
+    }
+    
     CGFloat del = 1.f;
     CGFloat dur = (self.duration - del ) / 2.f;
-    [UIView animateWithDuration:dur animations:^{
+    [UIView animateWithDuration:dur delay:(dur + del) options:self.options animations:^{
         [self middleOrigin];
     } completion:^(BOOL finished) {
-        [UIView animateWithDuration:dur delay:del options:UIViewAnimationOptionCurveLinear animations:^{
-            [self endPoint];
-        } completion:^(BOOL finished) {
-                [self.customView setHidden:YES];
-                [self beginPoint];
-        }];
+        if (finished) {
+            [UIView animateWithDuration:dur delay:del options:self.options animations:^{
+                [self endPoint];
+            } completion:^(BOOL finished) {
+                if (finished) {
+                    [self.customView setHidden:YES];
+                    [self scorllVertical];
+                }
+            }];
+        }
     }];
 }
 
+#pragma mark - Point
+
 ///开始位置
 - (void)beginPoint {
+    
     switch (self.direction) {
         case RollDirectionRight:  [self leftOrigin];  break;
         case RollDirectionUp:     [self downOrigin];  break;
@@ -116,6 +179,7 @@
 
 ///结束位置
 - (void)endPoint {
+    
     switch (self.direction) {
         case RollDirectionRight:  [self rightOrigin]; break;
         case RollDirectionUp:     [self upOrigin];    break;
@@ -123,6 +187,8 @@
         default:                  [self leftOrigin];  break;
     }
 }
+
+#pragma mark - Frame
 
 ///右
 - (void)rightOrigin {
@@ -159,6 +225,16 @@
     self.customView.frame   = frame;
 }
 
+#pragma mark - Other
+
+- (void)rollViewWillEnterForeground {
+    if (self.state == RollViewStateRolling &&
+        (self.direction == RollDirectionUp ||
+         self.direction == RollDirectionDown)) {
+        self.state = RollViewStateDidInit;
+        [self start];
+    }
+}
 
 
 @end
